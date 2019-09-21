@@ -284,6 +284,30 @@ def handler_mailing(message):
                 bot.send_message(u['id'], text)
 
 
+# Открыть регистрацию организаторов
+@bot.message_handler(commands='/open')
+def handler_open(message):
+    user = db['users'].find_one({'id': message.chat.id})
+    if user['type'] == 2:
+        open_settings = db['settings'].find_one({'name': 'registration'})
+        open_settings['open'] = True
+        db['settings'].replace_one({'name': 'registration'}, open_settings)
+
+        bot.send_message(message.chat.id, 'Регистрация успешно открыта!')
+
+
+# Закрыть регистрацию организаторов
+@bot.message_handler(commands='/close')
+def handler_close(message):
+    user = db['users'].find_one({'id': message.chat.id})
+    if user['type'] == 2:
+        open_settings = db['settings'].find_one({'name': 'registration'})
+        open_settings['open'] = False
+        db['settings'].replace_one({'name': 'registration'}, open_settings)
+
+        bot.send_message(message.chat.id, 'Регистрация успешно закрыта!')
+
+
 # Начать квест
 @bot.message_handler(commands='/begin')
 def handler_begin(message):
@@ -297,7 +321,8 @@ def handler_begin(message):
         bot.send_message(message.chat.id, 'Квест успешно запущен!')
 
         users = db['users'].find({})
-        text = 'Квест только что начался, а значит вы уже можете выбирать станции, выполнять задания и зарабатывать опыт, необходимый для победы!'
+        text = 'Квест только что начался, а значит вы уже можете выбирать станции, выполнять задания и ' \
+               'зарабатывать опыт, необходимый для победы!'
         for u in users:
             bot.send_message(u['id'], text)
 
@@ -315,9 +340,27 @@ def handler_end(message):
         bot.send_message(message.chat.id, 'Квест успешно закончен!')
 
         users = db['users'].find({})
-        text = 'Наш квест подощёл к концу, заканчивайте выполнение текущей станции и ждите результатов, которые будут объявлены в клубе! До новых встреч!!!'
+        text = 'Наш квест подощёл к концу, заканчивайте выполнение текущей станции и ждите результатов, ' \
+               'которые будут объявлены в клубе! До новых встреч!!!'
         for u in users:
             bot.send_message(u['id'], text)
+
+
+# Статистика по всем группам
+@bot.message_handler(commands='/stats')
+def handler_stats(message):
+    user = db['users'].find_one({'id': message.chat.id})
+    if user['type'] == 2:
+        groups = db['groups'].find({})
+        text = 'Рейтинг групп:'
+        place = 1
+        for group in sorted(groups, key=lambda g: g['experience'], reverse=True):
+            text += '\n\n' + str(place) + '. Группа ' + str(group['id']) + \
+                    '\nКоличество опыта: ' + str(group['experience']) + \
+                    '\nКоличество денег: ' + str(group['money'])
+            place += 1
+
+        bot.send_message(message.chat.id, text)
 
 
 if __name__ == '__main__':
