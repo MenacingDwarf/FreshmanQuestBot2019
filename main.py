@@ -19,6 +19,13 @@ def keyboard(key):
     return x
 
 
+def log_message(message):
+    print(message.from_user.first_name,
+          message.from_user.last_name,
+          '(' + message.from_user.username + '):',
+          message.text)
+
+
 def send_message_group(group_number, text):
     group = db['groups'].find_one({'id': group_number})
     users = db['users'].find({'group': group['id']})
@@ -29,6 +36,7 @@ def send_message_group(group_number, text):
 # Приветственное сообщение
 @bot.message_handler(commands=['start'])
 def handle_start(message):
+    log_message(message)
     is_open = db['settings'].find_one({'name': 'registration'})['open']
     if is_open:
         bot.send_message(message.chat.id, 'Привет, организатор! Для начала тебе нужно зарегистрироваться. Пиши /reg_org N, где вместо N номер твоей станции. Посмотреть всё станции, чтобы узнать свой номер, ты можешь с помощью команды /free')
@@ -40,6 +48,7 @@ def handle_start(message):
 @bot.message_handler(commands=['help'])
 def handle_help(message):
     user = db['users'].find_one({'id': message.chat.id})
+    log_message(message)
     if not user:
         bot.send_message(message.chat.id, 'Сначала необходимо зарегистрироваться!')
     else:
@@ -65,6 +74,7 @@ def handle_help(message):
 # Регистрация участника
 @bot.message_handler(commands=['reg_user'])
 def handler_user(message):
+    log_message(message)
     try:
         group = int(message.text.split()[1])
     except:
@@ -93,6 +103,7 @@ def handler_user(message):
 # Информация о результатах группы
 @bot.message_handler(commands=['info'])
 def handler_info(message):
+    log_message(message)
     user = db['users'].find_one({'id': message.chat.id})
     if not user:
         bot.send_message(message.chat.id, 'Сначала необходимо зарегистрироваться!')
@@ -111,6 +122,7 @@ def handler_info(message):
 # Свободные станции
 @bot.message_handler(commands=['free'])
 def handler_free(message):
+    log_message(message)
     is_started = db['settings'].find_one({'name': 'quest'})['is_started']
     is_ended = db['settings'].find_one({'name': 'quest'})['is_ended']
     if not is_started:
@@ -118,9 +130,15 @@ def handler_free(message):
         bot.send_message(message.chat.id, text)
     else:
         stations = list(db['stations'].find({'group': 0}))
+        user = db['users'].find_one({'id': message.chat.id})
+        if user:
+            if not user['type']:
+                group = db['groups'].find_one({'id': user['group']})
+                stations = list(filter(lambda station: station['name'] not in group['stations'], stations))
         answer = "\n\n".join([str(station["id"]) + '. ' + station["name"] +
                               '\nРасположение: ' + station["geo"] +
-                              '\nНаграда: ' + str(station["reward"]) for station in stations])
+                              '\nНаграда: ' + str(station["reward"]) for station in stations]) if len(stations) > 0 \
+            else "Нет свободных станций"
         bot.send_message(message.chat.id, 'Список свободных станций:\n\n' + answer)
 
 
@@ -128,6 +146,7 @@ def handler_free(message):
 @bot.message_handler(commands=['take'])
 def handler_take(message):
     user = db['users'].find_one({'id': message.chat.id})
+    log_message(message)
     if not user:
         bot.send_message(message.chat.id, 'Сначала необходимо зарегистрироваться!')
     else:
@@ -150,6 +169,9 @@ def handler_take(message):
                     if not station:
                         bot.send_message(message.chat.id, 'Неправильный номер станции!')
                     else:
+                        if station['name'] in group['stations']:
+                            bot.send_message(message.chat.id, 'Вы уже прошли эту станцию!')
+                            return
                         group['current_station'] = station_number
                         db['groups'].replace_one({'id': group['id']}, group)
 
@@ -167,6 +189,7 @@ def handler_take(message):
 # Регистрация организатора
 @bot.message_handler(commands=['reg_org'])
 def handler_reg_org(message):
+    log_message(message)
     is_open = db['settings'].find_one({'name': 'registration'})['open']
     if not is_open:
         bot.send_message(message.chat.id, 'Регистрация организаторов закрыта!')
@@ -216,6 +239,7 @@ def handler_station(message):
 @bot.message_handler(commands=['reward'])
 def handler_reward(message):
     user = db['users'].find_one({'id': message.chat.id})
+    log_message(message)
     if not user:
         bot.send_message(message.chat.id, 'Организатор не зарегистрирован!')
     else:
@@ -237,6 +261,7 @@ def handler_reward(message):
                     reward = station['reward'] * points / 10 * (1 + group['money'] / 100)
                     group['experience'] += reward
                     group['current_station'] = 0
+                    group['stations'].append(station['name'])
                     db['groups'].replace_one({'id': group['id']}, group)
 
                     station['group'] = 0
@@ -254,6 +279,7 @@ def handler_reward(message):
 @bot.message_handler(commands=['pay'])
 def handler_pay(message):
     user = db['users'].find_one({'id': message.chat.id})
+    log_message(message)
     if user['type'] == 2:
         try:
             group_number = int(message.text.split()[1])
@@ -273,6 +299,7 @@ def handler_pay(message):
 @bot.message_handler(commands=['mailing'])
 def handler_mailing(message):
     user = db['users'].find_one({'id': message.chat.id})
+    log_message(message)
     if user['type'] == 2:
         try:
             text = ' '.join(message.text.split()[1:])
@@ -285,8 +312,9 @@ def handler_mailing(message):
 
 
 # Открыть регистрацию организаторов
-@bot.message_handler(commands='/open')
+@bot.message_handler(commands=['open'])
 def handler_open(message):
+    log_message(message)
     user = db['users'].find_one({'id': message.chat.id})
     if user['type'] == 2:
         open_settings = db['settings'].find_one({'name': 'registration'})
@@ -297,8 +325,9 @@ def handler_open(message):
 
 
 # Закрыть регистрацию организаторов
-@bot.message_handler(commands='/close')
+@bot.message_handler(commands=['close'])
 def handler_close(message):
+    log_message(message)
     user = db['users'].find_one({'id': message.chat.id})
     if user['type'] == 2:
         open_settings = db['settings'].find_one({'name': 'registration'})
@@ -309,8 +338,9 @@ def handler_close(message):
 
 
 # Начать квест
-@bot.message_handler(commands='/begin')
+@bot.message_handler(commands=['begin'])
 def handler_begin(message):
+    log_message(message)
     user = db['users'].find_one({'id': message.chat.id})
     if user['type'] == 2:
         quest_settings = db['settings'].find_one({'name': 'quest'})
@@ -328,7 +358,7 @@ def handler_begin(message):
 
 
 # Закончить квест
-@bot.message_handler(commands='/end')
+@bot.message_handler(commands=['end'])
 def handler_end(message):
     user = db['users'].find_one({'id': message.chat.id})
     if user['type'] == 2:
@@ -347,8 +377,9 @@ def handler_end(message):
 
 
 # Статистика по всем группам
-@bot.message_handler(commands='/stats')
+@bot.message_handler(commands=['stats'])
 def handler_stats(message):
+    log_message(message)
     user = db['users'].find_one({'id': message.chat.id})
     if user['type'] == 2:
         groups = db['groups'].find({})
@@ -361,6 +392,14 @@ def handler_stats(message):
             place += 1
 
         bot.send_message(message.chat.id, text)
+    print('User \"' + message.from_user.username + '\" send message ' + message.text)
+
+
+# Левое сообщение
+@bot.message_handler(content_types=['text'])
+def handle_message(message):
+    log_message(message)
+    bot.send_message(message.chat.id, 'К сожалению, я слишком глупый, чтобы поболтать с тобой 😟')
 
 
 if __name__ == '__main__':
