@@ -3,7 +3,7 @@ import telebot
 import json
 import time
 
-MAX_GROUP_STUDENTS = 1
+MAX_GROUP_STUDENTS = 2
 db = MongoClient()['am-cp']
 
 with open('keys.json', 'r') as file:
@@ -20,9 +20,9 @@ def keyboard(key):
 
 
 def log_message(message):
-    print(message.from_user.first_name,
-          message.from_user.last_name,
-          '(' + message.from_user.username + '):',
+    print(str(message.from_user.first_name),
+          str(message.from_user.last_name),
+          '(' + str(message.from_user.username) + '):',
           message.text)
 
 
@@ -63,12 +63,14 @@ def handle_help(message):
                                               '/free - список свободных станций\n'
                                               '/take N - забронировать станцию для прохождения (N - номер станции)\n\n'
                                               'Порядок твоих действий: выбираешь станцию из свободных, бронируешь эту станцию, бежишь к нужному месту, выполняешь необходимые задания и получаешь награду. '
-                                              'После 17:00 бронирование станции станет недоступным, поторопись!')
+                                              'После 17:00 бронирование станции станет недоступным, поторопись!\n\n'
+                                              'По всем дополнительным вопросам обращаться к @menacing_dwarf')
         else:
             bot.send_message(message.chat.id, 'Ты зарегистрирован, как организатор! Доступные тебе команды:\n'
                                               '/station - информация о твоей станции\n'
                                               '/free - список станций\n'
-                                              '/reward N - выставить оценку за прохождение текущей команде (от 1 до 10)')
+                                              '/reward N - выставить оценку за прохождение текущей команде (от 1 до 10)\n\n'
+                                              'По всем дополнительным вопросам обращаться к @menacing_dwarf')
 
 
 # Регистрация участника
@@ -90,7 +92,13 @@ def handler_user(message):
             else:
                 user = db['users'].find_one({'id': message.chat.id})
                 if not user:
-                    user = {'id': message.chat.id, 'type': 0, 'group': group}
+                    user = {
+                        'id': message.chat.id,
+                        'username': message.from_user.username,
+                        'full_name': message.from_user.first_name + ' ' + message.from_user.last_name,
+                        'type': 0,
+                        'group': group
+                    }
                     db['users'].insert_one(user)
 
                     keyboards = keyboard([['/info'], ['/free'], ['/help']])
@@ -125,7 +133,8 @@ def handler_free(message):
     log_message(message)
     is_started = db['settings'].find_one({'name': 'quest'})['is_started']
     is_ended = db['settings'].find_one({'name': 'quest'})['is_ended']
-    if not is_started:
+    is_open = db['settings'].find_one({'name': 'registration'})['open']
+    if not is_started and not is_open:
         text = 'Квест ещё не начался, потерпи ещё немножко 😉' if not is_ended else 'Квест уже закончен, можешь отдохнуть 😉'
         bot.send_message(message.chat.id, text)
     else:
@@ -206,7 +215,13 @@ def handler_reg_org(message):
             else:
                 user = db['users'].find_one({'id': message.chat.id})
                 if not user:
-                    user = {'id': message.chat.id, 'type': 1, 'station': station}
+                    user = {
+                        'id': message.chat.id,
+                        'username': str(message.from_user.username),
+                        'full_name': str(message.from_user.first_name) + ' ' + str(message.from_user.last_name),
+                        'type': 1,
+                        'station': station
+                    }
                     db['users'].insert_one(user)
 
                     keyboards = keyboard([['/station'], ['/help']])
@@ -219,11 +234,12 @@ def handler_reg_org(message):
 # Информация о станции
 @bot.message_handler(commands=['station'])
 def handler_station(message):
+    log_message(message)
     user = db['users'].find_one({'id': message.chat.id})
     if not user:
         bot.send_message(message.chat.id, 'Организатор не зарегистрирован!')
     else:
-        if not user['type']:
+        if user['type'] != 1:
             bot.send_message(message.chat.id, 'Вы не организатор!')
         else:
             station = db['stations'].find_one({'id': user['station']})
@@ -243,7 +259,7 @@ def handler_reward(message):
     if not user:
         bot.send_message(message.chat.id, 'Организатор не зарегистрирован!')
     else:
-        if not user['type']:
+        if user['type'] != 1:
             bot.send_message(message.chat.id, 'Вы не организатор!')
         else:
             station = db['stations'].find_one({'id': user['station']})
