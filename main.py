@@ -2,6 +2,7 @@ from pymongo import MongoClient
 import telebot
 import json
 import time
+import datetime
 
 MAX_GROUP_STUDENTS = 2
 db = MongoClient()['am-cp']
@@ -20,10 +21,14 @@ def keyboard(key):
 
 
 def log_message(message):
-    print(str(message.from_user.first_name),
-          str(message.from_user.last_name),
-          '(' + str(message.from_user.username) + '):',
-          message.text)
+    with open('logs.txt', 'a') as logs:
+        line = '[' + datetime.datetime.now().strftime('hh:MM:ss') + ']' + ' ' + \
+              str(message.from_user.first_name) + ' ' + \
+              str(message.from_user.last_name) + ' ' + \
+              '(' + str(message.from_user.username) + '):' + ' ' + \
+              message.text
+        logs.write(line)
+        print(line)
 
 
 def send_message_group(group_number, text):
