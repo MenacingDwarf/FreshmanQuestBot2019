@@ -22,12 +22,12 @@ def keyboard(key):
 
 def log_message(message):
     with open('logs.txt', 'a') as logs:
-        line = '[' + datetime.datetime.now().strftime('hh:MM:ss') + ']' + ' ' + \
+        line = '[' + str(datetime.datetime.now().time()) + ']' + ' ' + \
               str(message.from_user.first_name) + ' ' + \
               str(message.from_user.last_name) + ' ' + \
               '(' + str(message.from_user.username) + '):' + ' ' + \
               message.text
-        logs.write(line)
+        logs.write(line+'\n')
         print(line)
 
 
