@@ -358,7 +358,7 @@ def handler_close(message):
         open_settings['open'] = False
         db['settings'].replace_one({'name': 'registration'}, open_settings)
 
-        bot.send_message(message.chat.id, 'Регистрация успешно закрыта!')
+        bot.send_message(message.chat.id, 'Регистрация успешно закрыта!!')
 
 
 # Начать квест
